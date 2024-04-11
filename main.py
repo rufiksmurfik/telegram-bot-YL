@@ -6,13 +6,15 @@ import smtplib
 from email.mime.text import MIMEText
 import re
 import datetime
+import messages
+import config
+
 
 def is_email(email):
-    # Регулярное выражение для проверки email
     pattern = r'^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
 SUBSCRIPE_PRICE = 100
-API_TOKEN = '7162305379:AAEHpA2d1PBqHTrakBF1-YGs7ibq3HhSiFw'
+API_TOKEN = config.BOT_TOKEN
 ADMIN_USER_ID = '1369331889'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 465
@@ -28,7 +30,35 @@ promo_codes = []
 users_profiles = {}
 verification_codes = {}
 services = ['Sber',  'Yandex', 'Eldorado']
+bot.bot_pre_checkout_query = 60
 
+
+def pay(message, price):
+    print(price)
+    price = types.LabeledPrice(label='Покупка подписки', amount=price * 100)
+    bot.send_invoice(message.chat.id, title='премиум подписка',
+                     description='покупка подписки на 30 дней',
+                     provider_token=config.PAYMENTS_PROVIDER_TOKEN, currency='RUB', photo_url='https://sun9-45.userapi.com/impg/-Z-7UPu8l2_BffCmk2AAOwO93RhctRV2o6P8fw/Db965YNvLKw.jpg?size=604x340&quality=96&sign=42d628d674878640cf4783e3778041d2&type=album',prices=[price], start_parameter='start', need_email=True, invoice_payload='coupon')
+
+
+@bot.message_handler(content_types=['successful_payment'])
+def success(message):
+    print(message.successful_payment.total_amount / 100)
+    print("ASSSSSSSSSSSSSSSSSSSSSSS")
+    user_id = message.chat.id
+    db = sqlite3.connect("promocodes.db")
+    cur = db.cursor()
+    balnow = cur.execute(f"SELECT balance FROM users WHERE userid='{user_id}'").fetchone()[0]
+    cur.execute(
+        f"UPDATE users SET balance={round(balnow + message.successful_payment.total_amount / 100, 2)} WHERE userid='{user_id}'")
+    db.commit()
+    db.close()
+    bot.send_message(message.chat.id, f'Платеж на {message.successful_payment.total_amount / 100} {message.successful_payment.currency} проведен успешно!', reply_markup=defaultmarkup)
+
+
+@bot.pre_checkout_query_handler(func=lambda query: True)
+def process_pre_checkout_query(pre_checkout_query):
+    bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
 def isOutdated(dt):
     return datetime.datetime.now() > datetime.datetime.strptime(dt, "%Y-%m-%d %H:%M:%S.%f")
@@ -59,7 +89,7 @@ def handle_callback(call):
         print(call.from_user.id)
         balance = round(cur.execute(f"SELECT balance FROM users WHERE userid={call.from_user.id}").fetchone()[0] - 100, 2)
         if balance < 0:
-            bot.send_message(call.message.chat.id, "нахуй пошел, багоюзер")
+            bot.send_message(call.message.chat.id, "багоюзер")
             return
         print(balance)
         cur.execute(f"UPDATE users SET balance={balance}, usertype='sub', subscribedtill='{datetime.datetime.now() + datetime.timedelta(days=30)}' WHERE userid={call.from_user.id}")
@@ -68,6 +98,21 @@ def handle_callback(call):
         bot.send_message(call.message.chat.id, "Вы приобрели подписку!")
     elif call.data == 'buy_no':
         bot.send_message(call.message.chat.id, "Вы отказались от подписки")
+    elif "admin_down_" in call.data:
+        print(call.data)
+        db = sqlite3.connect("promocodes.db")
+        cur = db.cursor()
+        cur.execute(f"UPDATE users SET usertype='user' WHERE userid='{call.data.split('_')[-1]}'")
+        db.commit()
+        db.close()
+        bot.send_message(call.message.chat.id, "админ успешно унижен", reply_markup=defaultmarkup)
+    elif call.data == "pop_up":
+        msg = bot.send_message(call.message.chat.id, "введите сумму пополнения")
+        bot.register_next_step_handler(msg, lambda m:pay(msg, int(m.text)))
+    elif "admin_" in call.data:
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("УНИЗИТЬ", callback_data="admin_down_" + call.data.split("_")[-1]))
+        bot.send_message(call.message.chat.id, "выберите действие для админа " + str(bot.get_chat_member(call.data.split("_")[-1], call.data.split("_")[-1]).user.username), reply_markup=markup)
 
 
 @bot.message_handler(func=lambda message: True)
@@ -106,7 +151,7 @@ def handle_messages(message):
 def add_promo(message):
     db = sqlite3.connect("promocodes.db")
     cur = db.cursor()
-    admins = [str(i[0]) for i in cur.execute("SELECT userid FROM users WHERE usertype='admin'").fetchall()]
+    admins = [str(i[0]) for i in cur.execute("SELECT userid FROM users WHERE usertype='admin' or usertype='gladmin'").fetchall()]
     print(admins)
     db.close()
     if str(message.from_user.id) in admins:
@@ -117,7 +162,7 @@ def add_promo(message):
         bot.send_message(message.chat.id, "Выберите сервис:", reply_markup=markup)
         bot.register_next_step_handler(message, process_service_choice)
     else:
-        bot.reply_to(message, "Извините, только администратор может добавлять промокоды.")
+        bot.send_message(message.chat.id, "Извините, только администратор может добавлять промокоды.", reply_markup=defaultmarkup)
 
 def process_service_choice(message):
     if message.text in services:
@@ -161,17 +206,17 @@ def show_promos(message, servicetype):
     print(servicetype)
     db = sqlite3.connect("promocodes.db")
     cur = db.cursor()
-    ustype = cur.execute(f"SELECT usertype FROM users WHERE userid")
+    ustype = cur.execute(f"SELECT usertype FROM users WHERE userid={message.from_user.id}").fetchone()[0]
     if servicetype == 'All':
         promos = cur.execute("SELECT promo, servicenum, creatorId FROM promos").fetchall()
         promo_list = "СПИСОК ДОСТУПНЫХ ПРОМОКОДОВ:\n" + "\n".join([
-                                   f"<b>{key}:</b>{services[value[1]]} <code>{value[0]}</code>, <a href='tg://user?id={value[2]}'>добавил промо</a>"
+                                   f"<b>{key}:</b>{services[value[1]]} <code>{value[0]}</code>, " + (f"<a href='tg://user?id={value[2]}'>добавил промо</a>" if "dmin" in ustype else "")
                                    for key, value in enumerate(promos, start=1)])
 
     else:
         promos = cur.execute(f"SELECT promo, servicenum, creatorId FROM promos where servicenum={servicetype}").fetchall()
         promo_list = f"ПРОМО ДЛЯ СЕРВИСА {services[servicetype]}:\n" + "\n".join([
-                                   f"<b>{key}:</b> <code>{value[0]}</code>, <a href='tg://user?id={value[2]}'>добавил промо</a>"
+                                   f"<b>{key}:</b> <code>{value[0]}</code>, " + (f"<a href='tg://user?id={value[2]}'>добавил промо</a>" if "dmin" in ustype else "")
                                    for key, value in enumerate(promos, start=1)])
 
     db.close()
@@ -254,12 +299,24 @@ def subscribe_settings(message):
                 markup.add(types.InlineKeyboardButton('Нет', callback_data='buy_no'))
                 bot.send_message(message.chat.id, f"Ваш баланс: {balance} руб\nПодписка стоит {SUBSCRIPE_PRICE} руб.\nУ вас нет активной подписки, но достаточно денег, чтобы ее приобрести. Желаете приобрести подписку?", reply_markup=markup)
             else:
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton('Пополнить баланс', callback_data='pop_up'))
                 bot.send_message(message.chat.id,
-                                 f"Ваш баланс: {balance} руб\nПодписка стоит {SUBSCRIPE_PRICE} руб.\nУ вас нет активной подписки и недостаточно денег, чтобы ее приобрести.", reply_markup=defaultmarkup)
+                                 f"Ваш баланс: {balance} руб\nПодписка стоит {SUBSCRIPE_PRICE} руб.\nУ вас нет активной подписки и недостаточно денег, чтобы ее приобрести.", reply_markup=markup)
         case "sub":
             bot.send_message(message.chat.id, f"У вас есть подписка, она активна до {sub_till.date()} (еще {(sub_till.date() - datetime.date.today()).days} дней)", reply_markup=defaultmarkup)
         case "admin":
             bot.send_message(message.chat.id, f"вы админ, зачем сюда заходить...", reply_markup=defaultmarkup)
+        case "gladmin":
+            db = sqlite3.connect("promocodes.db")
+            cur = db.cursor()
+            admins = [bot.get_chat_member(i[0], i[0]).user.username for i in cur.execute("SELECT userid FROM users WHERE usertype='admin'").fetchall()]
+            adminsids = [i[0] for i in cur.execute("SELECT userid FROM users WHERE usertype='admin'").fetchall()]
+            db.close()
+            markup = types.InlineKeyboardMarkup(row_width=len(admins))
+            for admin in range(len(admins)):
+                markup.add(types.InlineKeyboardButton(admins[admin], callback_data="admin_" + str(adminsids[admin])))
+            bot.send_message(message.chat.id, "Список администрации", reply_markup=markup)
 
 
 bot.polling()
