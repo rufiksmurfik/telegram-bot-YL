@@ -145,7 +145,7 @@ def handle_callback(call):
             f"UPDATE users SET balance={balance}, usertype='sub', subscribedtill='{datetime.datetime.now() + datetime.timedelta(days=30)}' WHERE userid={call.from_user.id}")
         db.commit()
         db.close()
-        bot.send_message(call.message.chat.id, "Вы приобрели подписку!") #ыф
+        bot.send_message(call.message.chat.id, "Вы приобрели подписку!") #ыфf
     elif call.data == 'buy_no':
         bot.send_message(call.message.chat.id, "Вы отказались от подписки")
     elif "admin_down_" in call.data:
