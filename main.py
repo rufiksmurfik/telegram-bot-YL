@@ -153,11 +153,11 @@ def manage_user(message, usidlist):
 
 def edit_user(message, id):
     print(message)
-    if message.text == "Поменять масть":
+    if message.text == "Поменять роль":
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
         for i in usertypes[2:]:
             markup.add(types.KeyboardButton(i))
-        msg = bot.send_message(message.chat.id, "Выберите новую масть", reply_markup=markup)
+        msg = bot.send_message(message.chat.id, "Выберите новую роль", reply_markup=markup)
         bot.register_next_step_handler(msg, lambda m:edit_type(m, id))
     elif message.text == "Поменять баланс":
         msg = bot.send_message(message.chat.id, "Введите новый баланс")
@@ -173,9 +173,9 @@ def edit_type(message, id):
         cur.execute("UPDATE users SET usertype=? WHERE userid=?", (message.text, id))
         db.commit()
         db.close()
-        bot.send_message(message.chat.id, "масть успешно изменена", reply_markup=defaultmarkup)
+        bot.send_message(message.chat.id, "Роль успешно изменена", reply_markup=defaultmarkup)
     else:
-        bot.send_message(message.chat.id, "такой масти нет", reply_markup=defaultmarkup)
+        bot.send_message(message.chat.id, "такой роли нет", reply_markup=defaultmarkup)
 
 def edit_balance(message, id):
     if message.text.isdigit():
