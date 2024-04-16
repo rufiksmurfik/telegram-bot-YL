@@ -119,7 +119,7 @@ def manage_users(message):
     if check_admin(message.from_user.id):
         db = sqlite3.connect("promocodes.db")
         cur = db.cursor()
-        a = cur.execute("SELECT userid, usertype FROM users").fetchall()
+        a = cur.execute("SELECT userid, usertype FROM users WHERE usertype='user' or usertype='sub'").fetchall()
         users = "Введите 0 для отмены или введите номер пользователя:\n" + "\n".join([
             f"<b>{key}:</b>{value[0]} <code>{bot.get_chat_member(value[0], value[0]).user.username if value[0] > 1488 else 'asshole'}</code>, по масти {value[1]}, <a href='tg://user?id={value[0]}'>ссылка:</a>"
             for key, value in enumerate(a, start=1)])
@@ -155,7 +155,7 @@ def edit_user(message, id):
     print(message)
     if message.text == "Поменять масть":
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-        for i in usertypes:
+        for i in usertypes[2:]:
             markup.add(types.KeyboardButton(i))
         msg = bot.send_message(message.chat.id, "Выберите новую масть", reply_markup=markup)
         bot.register_next_step_handler(msg, lambda m:edit_type(m, id))
@@ -167,7 +167,7 @@ def edit_user(message, id):
 
 
 def edit_type(message, id):
-    if message.text in usertypes:
+    if message.text in usertypes[2:]:
         db = sqlite3.connect("promocodes.db")
         cur = db.cursor()
         cur.execute("UPDATE users SET usertype=? WHERE userid=?", (message.text, id))
@@ -262,9 +262,18 @@ def handle_messages(message):
     us = list(us)
     print(us)
     if us[2] == "sub" and isOutdated(us[5]):
-        us[2] = "user"
-        cur.execute(f"UPDATE users SET usertype = 'user' WHERE userid = '{message.from_user.id}'")
-        db.commit()
+        if us[4] >= SUBSCRIPE_PRICE:
+            balance = round(cur.execute(f"SELECT balance FROM users WHERE userid={message.from_user.id}").fetchone()[
+                                0] - SUBSCRIPE_PRICE, 2)
+            cur.execute(
+                f"UPDATE users SET balance={balance}, usertype='sub', subscribedtill='{datetime.datetime.now() + datetime.timedelta(days=30)}' WHERE userid={message.from_user.id}")
+            db.commit()
+            bot.send_message(message.chat.id, f"Ваша подписка автоматически продлена из вашего баланса. ваш баланс теперь: {balance} руб.")
+        else:
+            us[2] = "user"
+            cur.execute(f"UPDATE users SET usertype = 'user' WHERE userid = '{message.from_user.id}'")
+            db.commit()
+            bot.send_message(message.chat.id, "Время вашей подписки истекло, не хватает баланса для продления")
     db.close()
     print(message.text)
     if message.text == 'Добавить промокод':
