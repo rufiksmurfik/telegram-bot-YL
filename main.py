@@ -449,7 +449,7 @@ def subscribe_settings(message):
     db.close()
     match usertype:
         case "user":
-            if balance > SUBSCRIPE_PRICE:
+            if balance >= SUBSCRIPE_PRICE:
                 markup = types.InlineKeyboardMarkup()
                 markup.add(types.InlineKeyboardButton('Да', callback_data='buy_yes'))
                 markup.add(types.InlineKeyboardButton('Нет', callback_data='buy_no'))
