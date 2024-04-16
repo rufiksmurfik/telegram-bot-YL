@@ -45,6 +45,7 @@ users_profiles = {}
 verification_codes = {}
 services = ['Sber', 'Yandex', 'Eldorado']
 bot.bot_pre_checkout_query = 60
+usertypes = ['admin', 'gladmin', 'user', 'sub']
 
 
 def pay(message, price):
@@ -104,7 +105,7 @@ def send_verification_email(email, code):
 @bot.message_handler(commands=['admin_panel'])
 def admin_panel(message):
     if check_admin(message.from_user.id):
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
         markup.add(types.KeyboardButton('Управление пользователями'))
         markup.add(types.KeyboardButton('Добавить админа'))
         markup.add(types.KeyboardButton('Удалить админа'))
@@ -118,20 +119,74 @@ def manage_users(message):
     if check_admin(message.from_user.id):
         db = sqlite3.connect("promocodes.db")
         cur = db.cursor()
-        a = [i[0] for i in cur.execute("SELECT userid FROM users").fetchall()]
+        a = cur.execute("SELECT userid, usertype FROM users").fetchall()
         users = "Введите 0 для отмены или введите номер пользователя:\n" + "\n".join([
-            f"<b>{key}:</b>{value} <code>{bot.get_chat_member(value, value).user.username if value > 1488 else 'asshole'}</code>, <a href='tg://user?id={value}'>ссылка:</a>"
+            f"<b>{key}:</b>{value[0]} <code>{bot.get_chat_member(value[0], value[0]).user.username if value[0] > 1488 else 'asshole'}</code>, по масти {value[1]}, <a href='tg://user?id={value[0]}'>ссылка:</a>"
             for key, value in enumerate(a, start=1)])
-        bot.send_message(message.chat.id, users, parse_mode='HTML')
+        msg = bot.send_message(message.chat.id, users, parse_mode='HTML')
+        bot.register_next_step_handler(msg, lambda m:manage_user(m, a))
     else:
         bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
 
 
 def manage_user(message, usidlist):
-    if 0 < message.text <= len(usidlist):
-        pass
+    print(usidlist, message.text)
+    if message.text.isdigit() and 0 < int(message.text) <= len(usidlist):
+        db = sqlite3.connect("promocodes.db")
+        cur = db.cursor()
+        usertype, email, balance = cur.execute(
+            f"SELECT usertype, email, balance FROM users WHERE userid={usidlist[int(message.text) - 1][0]}").fetchone()
+        print(email, balance, usertype)
+        profile_info = f"<b>Профиль:</b>\n\n" \
+                       f"<b>Имя:</b> {bot.get_chat_member(usidlist[int(message.text) - 1][0], usidlist[int(message.text) - 1][0]).user.username if usidlist[int(message.text) - 1][0] > 1488 else 'asshole'}\n" \
+                       f"<b>Email:</b> {email}\n" \
+                       f"<b>Баланс:</b> {balance} руб.\n" \
+                       f"<b>Ваша масть:</b> {usertype}"
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        markup.add(types.KeyboardButton("Поменять масть"))
+        markup.add(types.KeyboardButton("Поменять баланс"))
+        msg = bot.send_message(message.chat.id, profile_info, parse_mode='HTML', reply_markup=markup)
+        bot.register_next_step_handler(msg, lambda m:edit_user(m, usidlist[int(message.text) - 1][0]))
     else:
         bot.send_message(message.chat.id, "возвращаемся в главное меню", reply_markup=defaultmarkup)
+
+
+def edit_user(message, id):
+    print(message)
+    if message.text == "Поменять масть":
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+        for i in usertypes:
+            markup.add(types.KeyboardButton(i))
+        msg = bot.send_message(message.chat.id, "Выберите новую масть", reply_markup=markup)
+        bot.register_next_step_handler(msg, lambda m:edit_type(m, id))
+    elif message.text == "Поменять баланс":
+        msg = bot.send_message(message.chat.id, "Введите новый баланс")
+        bot.register_next_step_handler(msg, lambda m:edit_balance(m, id))
+    else:
+        bot.send_message(message.chat.id, "такого действия нет", reply_markup=defaultmarkup)
+
+
+def edit_type(message, id):
+    if message.text in usertypes:
+        db = sqlite3.connect("promocodes.db")
+        cur = db.cursor()
+        cur.execute("UPDATE users SET usertype=? WHERE userid=?", (message.text, id))
+        db.commit()
+        db.close()
+        bot.send_message(message.chat.id, "масть успешно изменена", reply_markup=defaultmarkup)
+    else:
+        bot.send_message(message.chat.id, "такой масти нет", reply_markup=defaultmarkup)
+
+def edit_balance(message, id):
+    if message.text.isdigit():
+        db = sqlite3.connect("promocodes.db")
+        cur = db.cursor()
+        cur.execute("UPDATE users SET balance=? WHERE userid=?", (message.text, id))
+        db.commit()
+        db.close()
+        bot.send_message(message.chat.id, "баланс успешно изменен", reply_markup=defaultmarkup)
+    else:
+        bot.send_message(message.chat.id, "баланс должен быть числом", reply_markup=defaultmarkup)
 
 
 @bot.message_handler(func=lambda message: message.text == 'Статистика бота')
