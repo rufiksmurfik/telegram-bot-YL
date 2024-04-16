@@ -6,10 +6,21 @@ import smtplib
 from email.mime.text import MIMEText
 import re
 import datetime
-import messages
-import config
-import time
 
+from telebot.apihelper import ApiTelegramException
+
+import config
+
+def check_admin(id, mode=0):
+    db = sqlite3.connect("promocodes.db")
+    cur = db.cursor()
+    usertype = cur.execute(f"SELECT usertype FROM users WHERE userid={id}").fetchone()[0]
+    db.close()
+    if usertype == "admin":
+        return True
+    if mode == 0 and usertype == "gladmin":
+        return True
+    return False
 
 def is_email(email):
     pattern = r'^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$'
@@ -18,11 +29,11 @@ def is_email(email):
 
 SUBSCRIPE_PRICE = 100
 API_TOKEN = config.BOT_TOKEN
-ADMIN_USER_ID = '1369331889'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 465
-EMAIL_HOST_USER = 'ivanberat81@gmail.com'
-EMAIL_HOST_PASSWORD = 'dhwk tuco xgof zosf'
+ADMIN_USER_ID = config.ADMIN_USER_ID
+EMAIL_HOST = config.EMAIL_HOST
+EMAIL_PORT = config.EMAIL_PORT
+EMAIL_HOST_USER = config.EMAIL_HOST_USER
+EMAIL_HOST_PASSWORD = config.EMAIL_HOST_PASSWORD
 defaultmarkup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
 defaultmarkup.add(types.KeyboardButton('Добавить промокод'))
 defaultmarkup.add(types.KeyboardButton('Показать промокоды'))
@@ -39,11 +50,14 @@ bot.bot_pre_checkout_query = 60
 def pay(message, price):
     print(price)
     price = types.LabeledPrice(label='Покупка подписки', amount=price * 100)
-    bot.send_invoice(message.chat.id, title='премиум подписка',
+    try:
+        bot.send_invoice(message.chat.id, title='премиум подписка',
                      description='покупка подписки на 30 дней',
                      provider_token=config.PAYMENTS_PROVIDER_TOKEN, currency='RUB',
                      photo_url='https://sun9-45.userapi.com/impg/-Z-7UPu8l2_BffCmk2AAOwO93RhctRV2o6P8fw/Db965YNvLKw.jpg?size=604x340&quality=96&sign=42d628d674878640cf4783e3778041d2&type=album',
                      prices=[price], start_parameter='start', need_email=True, invoice_payload='coupon')
+    except ApiTelegramException:
+        bot.send_message(message.chat.id, "Слишком маленькая/большая сумма пополнения", reply_markup=defaultmarkup)
 
 
 @bot.message_handler(content_types=['successful_payment'])
@@ -89,28 +103,40 @@ def send_verification_email(email, code):
 
 @bot.message_handler(commands=['admin_panel'])
 def admin_panel(message):
-    if str(message.from_user.id) == ADMIN_USER_ID:
+    if check_admin(message.from_user.id):
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add(types.KeyboardButton('Управление пользователями'))
-        markup.add(types.KeyboardButton('Статистика бота'))
         markup.add(types.KeyboardButton('Добавить админа'))
         markup.add(types.KeyboardButton('Удалить админа'))
+        markup.add(types.KeyboardButton('Назад'))
         bot.send_message(message.chat.id, "Административная панель:", reply_markup=markup)
     else:
         bot.send_message(message.chat.id, "У вас нет доступа к этой команде.")
 # Обработчик для управления пользователями
 @bot.message_handler(func=lambda message: message.text == 'Управление пользователями')
 def manage_users(message):
-    if str(message.from_user.id) == ADMIN_USER_ID:
-        # Здесь код для управления пользователями
-        bot.send_message(message.chat.id, "Функция управления пользователями еще не реализована.")
+    if check_admin(message.from_user.id):
+        db = sqlite3.connect("promocodes.db")
+        cur = db.cursor()
+        a = [i[0] for i in cur.execute("SELECT userid FROM users").fetchall()]
+        users = "Введите 0 для отмены или введите номер пользователя:\n" + "\n".join([
+            f"<b>{key}:</b>{value} <code>{bot.get_chat_member(value, value).user.username if value > 1488 else 'asshole'}</code>, <a href='tg://user?id={value}'>ссылка:</a>"
+            for key, value in enumerate(a, start=1)])
+        bot.send_message(message.chat.id, users, parse_mode='HTML')
     else:
         bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
 
 
+def manage_user(message, usidlist):
+    if 0 < message.text <= len(usidlist):
+        pass
+    else:
+        bot.send_message(message.chat.id, "возвращаемся в главное меню", reply_markup=defaultmarkup)
+
+
 @bot.message_handler(func=lambda message: message.text == 'Статистика бота')
 def bot_statistics(message):
-    if str(message.from_user.id) == ADMIN_USER_ID:
+    if check_admin(message.from_user.id):
         bot.send_message(message.chat.id, "Функция просмотра статистики бота еще не реализована.")
     else:
         bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
@@ -118,14 +144,14 @@ def bot_statistics(message):
 
 @bot.message_handler(func=lambda message: message.text == 'Добавить админа')
 def add_admin(message):
-    if str(message.from_user.id) == ADMIN_USER_ID:
+    if check_admin(message.from_user.id):
         bot.send_message(message.chat.id, "Функция добавления админа еще не реализована.")
     else:
         bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
 
 @bot.message_handler(func=lambda message: message.text == 'Удалить админа')
 def remove_admin(message):
-    if str(message.from_user.id) == ADMIN_USER_ID:
+    if check_admin(message.from_user.id):
         bot.send_message(message.chat.id, "Функция удаления админа еще не реализована.")
     else:
         bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
@@ -135,7 +161,7 @@ def handle_callback(call):
         db = sqlite3.connect("promocodes.db")
         cur = db.cursor()
         print(call.from_user.id)
-        balance = round(cur.execute(f"SELECT balance FROM users WHERE userid={call.from_user.id}").fetchone()[0] - 100,
+        balance = round(cur.execute(f"SELECT balance FROM users WHERE userid={call.from_user.id}").fetchone()[0] - SUBSCRIPE_PRICE,
                         2)
         if balance < 0:
             bot.send_message(call.message.chat.id, "багоюзер")
@@ -145,7 +171,7 @@ def handle_callback(call):
             f"UPDATE users SET balance={balance}, usertype='sub', subscribedtill='{datetime.datetime.now() + datetime.timedelta(days=30)}' WHERE userid={call.from_user.id}")
         db.commit()
         db.close()
-        bot.send_message(call.message.chat.id, "Вы приобрели подписку!") #ыфf
+        bot.send_message(call.message.chat.id, "Вы приобрели подписку!")
     elif call.data == 'buy_no':
         bot.send_message(call.message.chat.id, "Вы отказались от подписки")
     elif "admin_down_" in call.data:
