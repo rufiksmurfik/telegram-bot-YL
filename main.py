@@ -6,7 +6,7 @@ import smtplib
 from email.mime.text import MIMEText
 import re
 import datetime
-from telebot.apihelper import ApiTelegramExceptio
+from telebot.apihelper import ApiTelegramException
 import config
 
 
@@ -147,9 +147,8 @@ def manage_user(message, usidlist):
         usertype, email, balance = cur.execute(
             f"SELECT usertype, email, balance FROM users WHERE userid={usidlist[int(message.text) - 1][0]}").fetchone()
         print(email, balance, usertype)
-        profile_name = bot.get_chat_member(usidlist[int(message.text) - 1][0], usidlist[int(message.text) - 1][0])
         if usidlist[int(message.text) - 1][0] > 1488:
-            profile_name = profile_info_1.user.username
+            profile_name = bot.get_chat_member(usidlist[int(message.text) - 1][0], usidlist[int(message.text) - 1][0])
         else:
             profile_name = 'asshole'
         profile_info = f"<b>Профиль:</b>\n\n" \
