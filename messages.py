@@ -43,7 +43,6 @@ successful_payment = '''
 Купить ещё одну машину времени своему другу - /buy
 '''
 
-
 MESSAGES = {
     'start': start_message,
     'help': help_message,
