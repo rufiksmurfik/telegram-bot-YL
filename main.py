@@ -11,6 +11,7 @@ from telebot.apihelper import ApiTelegramException
 
 import config
 
+
 def check_admin(id, mode=0):
     db = sqlite3.connect("promocodes.db")
     cur = db.cursor()
@@ -21,6 +22,7 @@ def check_admin(id, mode=0):
     if mode == 0 and usertype == "gladmin":
         return True
     return False
+
 
 def is_email(email):
     pattern = r'^[\w\.-]+@[a-zA-Z\d\.-]+\.[a-zA-Z]{2,}$'
@@ -53,10 +55,10 @@ def pay(message, price):
     price = types.LabeledPrice(label='Покупка подписки', amount=price * 100)
     try:
         bot.send_invoice(message.chat.id, title='премиум подписка',
-                     description='покупка подписки на 30 дней',
-                     provider_token=config.PAYMENTS_PROVIDER_TOKEN, currency='RUB',
-                     photo_url='https://sun9-45.userapi.com/impg/-Z-7UPu8l2_BffCmk2AAOwO93RhctRV2o6P8fw/Db965YNvLKw.jpg?size=604x340&quality=96&sign=42d628d674878640cf4783e3778041d2&type=album',
-                     prices=[price], start_parameter='start', need_email=True, invoice_payload='coupon')
+                         description='покупка подписки на 30 дней',
+                         provider_token=config.PAYMENTS_PROVIDER_TOKEN, currency='RUB',
+                         photo_url='https://sun9-45.userapi.com/impg/-Z-7UPu8l2_BffCmk2AAOwO93RhctRV2o6P8fw/Db965YNvLKw.jpg?size=604x340&quality=96&sign=42d628d674878640cf4783e3778041d2&type=album',
+                         prices=[price], start_parameter='start', need_email=True, invoice_payload='coupon')
     except ApiTelegramException:
         bot.send_message(message.chat.id, "Слишком маленькая/большая сумма пополнения", reply_markup=defaultmarkup)
 
@@ -102,6 +104,7 @@ def send_verification_email(email, code):
     except smtplib.SMTPException as e:
         print(f"Ошибка отправки email: {e}")
 
+
 @bot.message_handler(commands=['admin_panel'])
 def admin_panel(message):
     if check_admin(message.from_user.id):
@@ -113,6 +116,8 @@ def admin_panel(message):
         bot.send_message(message.chat.id, "Административная панель:", reply_markup=markup)
     else:
         bot.send_message(message.chat.id, "У вас нет доступа к этой команде.")
+
+
 # Обработчик для управления пользователями
 @bot.message_handler(func=lambda message: message.text == 'Управление пользователями')
 def manage_users(message):
@@ -124,7 +129,7 @@ def manage_users(message):
             f"<b>{key}:</b>{value[0]} <code>{bot.get_chat_member(value[0], value[0]).user.username if value[0] > 1488 else 'asshole'}</code>, по масти {value[1]}, <a href='tg://user?id={value[0]}'>ссылка:</a>"
             for key, value in enumerate(a, start=1)])
         msg = bot.send_message(message.chat.id, users, parse_mode='HTML')
-        bot.register_next_step_handler(msg, lambda m:manage_user(m, a))
+        bot.register_next_step_handler(msg, lambda m: manage_user(m, a))
     else:
         bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
 
@@ -146,7 +151,7 @@ def manage_user(message, usidlist):
         markup.add(types.KeyboardButton("Поменять масть"))
         markup.add(types.KeyboardButton("Поменять баланс"))
         msg = bot.send_message(message.chat.id, profile_info, parse_mode='HTML', reply_markup=markup)
-        bot.register_next_step_handler(msg, lambda m:edit_user(m, usidlist[int(message.text) - 1][0]))
+        bot.register_next_step_handler(msg, lambda m: edit_user(m, usidlist[int(message.text) - 1][0]))
     else:
         bot.send_message(message.chat.id, "возвращаемся в главное меню", reply_markup=defaultmarkup)
 
@@ -158,10 +163,10 @@ def edit_user(message, id):
         for i in usertypes[2:]:
             markup.add(types.KeyboardButton(i))
         msg = bot.send_message(message.chat.id, "Выберите новую роль", reply_markup=markup)
-        bot.register_next_step_handler(msg, lambda m:edit_type(m, id))
+        bot.register_next_step_handler(msg, lambda m: edit_type(m, id))
     elif message.text == "Поменять баланс":
         msg = bot.send_message(message.chat.id, "Введите новый баланс")
-        bot.register_next_step_handler(msg, lambda m:edit_balance(m, id))
+        bot.register_next_step_handler(msg, lambda m: edit_balance(m, id))
     else:
         bot.send_message(message.chat.id, "такого действия нет", reply_markup=defaultmarkup)
 
@@ -176,6 +181,7 @@ def edit_type(message, id):
         bot.send_message(message.chat.id, "Роль успешно изменена", reply_markup=defaultmarkup)
     else:
         bot.send_message(message.chat.id, "такой роли нет", reply_markup=defaultmarkup)
+
 
 def edit_balance(message, id):
     if message.text.isdigit():
@@ -204,20 +210,24 @@ def add_admin(message):
     else:
         bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
 
+
 @bot.message_handler(func=lambda message: message.text == 'Удалить админа')
 def remove_admin(message):
     if check_admin(message.from_user.id):
         bot.send_message(message.chat.id, "Функция удаления админа еще не реализована.")
     else:
         bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+
+
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback(call):
     if call.data == 'buy_yes':
         db = sqlite3.connect("promocodes.db")
         cur = db.cursor()
         print(call.from_user.id)
-        balance = round(cur.execute(f"SELECT balance FROM users WHERE userid={call.from_user.id}").fetchone()[0] - SUBSCRIPE_PRICE,
-                        2)
+        balance = round(
+            cur.execute(f"SELECT balance FROM users WHERE userid={call.from_user.id}").fetchone()[0] - SUBSCRIPE_PRICE,
+            2)
         if balance < 0:
             bot.send_message(call.message.chat.id, "багоюзер")
             return
@@ -268,7 +278,8 @@ def handle_messages(message):
             cur.execute(
                 f"UPDATE users SET balance={balance}, usertype='sub', subscribedtill='{datetime.datetime.now() + datetime.timedelta(days=30)}' WHERE userid={message.from_user.id}")
             db.commit()
-            bot.send_message(message.chat.id, f"Ваша подписка автоматически продлена из вашего баланса. ваш баланс теперь: {balance} руб.")
+            bot.send_message(message.chat.id,
+                             f"Ваша подписка автоматически продлена из вашего баланса. ваш баланс теперь: {balance} руб.")
         else:
             us[2] = "user"
             cur.execute(f"UPDATE users SET usertype = 'user' WHERE userid = '{message.from_user.id}'")
