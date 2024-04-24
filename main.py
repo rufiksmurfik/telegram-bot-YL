@@ -120,13 +120,33 @@ def manage_users(message):
         db = sqlite3.connect("promocodes.db")
         cur = db.cursor()
         a = cur.execute("SELECT userid, usertype FROM users WHERE usertype='user' or usertype='sub'").fetchall()
-        users = "Введите 0 для отмены или введите номер пользователя:\n" + "\n".join([
-            f"<b>{key}:</b>{value[0]} <code>{bot.get_chat_member(value[0], value[0]).user.username if value[0] > 1488 else 'asshole'}</code>, по масти {value[1]}, <a href='tg://user?id={value[0]}'>ссылка:</a>"
-            for key, value in enumerate(a, start=1)])
-        msg = bot.send_message(message.chat.id, users, parse_mode='HTML')
-        bot.register_next_step_handler(msg, lambda m:manage_user(m, a))
+
+        users = []
+        for user_id, usertype in a:
+            user_info = ""
+            if user_id > 1488:  # Check if user is not a bot
+                try:
+                    user = bot.get_chat_member(user_id, user_id).user
+                    user_info = f"<b>ID:</b> {user_id}\n" \
+                                f"<b>Username:</b> @{user.username}\n" \
+                                f"<b>Type:</b> {usertype}\n"
+                except Exception as e:
+                    user_info = f"<b>ID:</b> {user_id}\n" \
+                                f"<b>Type:</b> {usertype}\n" \
+                                f"Error: {str(e)}\n"
+            else:
+                user_info = f"<b>ID:</b> {user_id}\n" \
+                            f"<b>Type:</b> {usertype}\n" \
+                            f"User is a bot\n"
+
+            users.append(user_info)
+
+        users_list = "Enter 0 to cancel or enter user number:\n" + "\n".join(
+            [f"<b>{key}:</b>\n{value}" for key, value in enumerate(users, start=1)])
+        msg = bot.send_message(message.chat.id, users_list, parse_mode='HTML')
+        bot.register_next_step_handler(msg, lambda m: manage_user(m, a))
     else:
-        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        bot.send_message(message.chat.id, "You do not have access to this function.")
 
 
 def manage_user(message, usidlist):
@@ -141,7 +161,7 @@ def manage_user(message, usidlist):
                        f"<b>Имя:</b> {bot.get_chat_member(usidlist[int(message.text) - 1][0], usidlist[int(message.text) - 1][0]).user.username if usidlist[int(message.text) - 1][0] > 1488 else 'asshole'}\n" \
                        f"<b>Email:</b> {email}\n" \
                        f"<b>Баланс:</b> {balance} руб.\n" \
-                       f"<b>Ваша масть:</b> {usertype}"
+                       f"<b>Ваша роль:</b> {usertype}"
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
         markup.add(types.KeyboardButton("Поменять масть"))
         markup.add(types.KeyboardButton("Поменять баланс"))
