@@ -58,7 +58,8 @@ def pay(message, price):
         bot.send_invoice(message.chat.id, title='премиум подписка',
                          description='покупка подписки на 30 дней',
                          provider_token=config.PAYMENTS_PROVIDER_TOKEN, currency='RUB',
-                         photo_url='https://sun9-45.userapi.com/impg/-Z-7UPu8l2_BffCmk2AAOwO93RhctRV2o6P8fw/Db965YNvLKw.jpg?size=604x340&quality=96&sign=42d628d674878640cf4783e3778041d2&type=album',
+                         photo_url='https://sun9-45.userapi.com/impg/-Z-7UPu8l2_BffCmk2AAOwO93RhctRV2o6P8fw/Db965YNv'
+                                   'LKw.jpg?size=604x340&quality=96&sign=42d628d674878640cf4783e3778041d2&type=album',
                          prices=[price], start_parameter='start', need_email=True, invoice_payload='coupon')
     except ApiTelegramException:
         bot.send_message(message.chat.id, "Слишком маленькая/большая сумма пополнения", reply_markup=defaultmarkup)
@@ -74,11 +75,13 @@ def success(message):
     cur = db.cursor()
     balnow = cur.execute(f"SELECT balance FROM users WHERE userid='{user_id}'").fetchone()[0]
     cur.execute(
-        f"UPDATE users SET balance={round(balnow + message.successful_payment.total_amount / 100, 2)} WHERE userid='{user_id}'")
+        f"UPDATE users SET balance={round(balnow + message.successful_payment.total_amount / 100, 2)} "
+        f"WHERE userid='{user_id}'")
     db.commit()
     db.close()
     bot.send_message(message.chat.id,
-                     f'Платеж на {message.successful_payment.total_amount / 100} {message.successful_payment.currency} проведен успешно!',
+                     f'Платеж на {message.successful_payment.total_amount / 100} '
+                     f'{message.successful_payment.currency} проведен успешно!',
                      reply_markup=defaultmarkup)
 
 
@@ -130,7 +133,9 @@ def manage_users(message):
         cur = db.cursor()
         a = cur.execute("SELECT userid, usertype FROM users WHERE usertype='user' or usertype='sub'").fetchall()
         users = "Введите 0 для отмены или введите номер пользователя:\n" + "\n".join([
-            f"<b>{key}:</b>{value[0]} <code>{bot.get_chat_member(value[0], value[0]).user.username if value[0] > 1488 else 'asshole'}</code>, по масти {value[1]}, <a href='tg://user?id={value[0]}'>ссылка:</a>"
+            f"<b>{key}:</b>{value[0]} "
+            f"<code>{bot.get_chat_member(value[0], value[0]).user.username if value[0] > 1488 else 'asshole'}"
+            f"</code>, по масти {value[1]}, <a href='tg://user?id={value[0]}'>ссылка:</a>"
             for key, value in enumerate(a, start=1)])
         msg = bot.send_message(message.chat.id, users, parse_mode='HTML')
         bot.register_next_step_handler(msg, lambda m: manage_user(m, a))
@@ -241,7 +246,8 @@ def handle_callback(call):
             return
         print(balance)
         cur.execute(
-            f"UPDATE users SET balance={balance}, usertype='sub', subscribedtill='{datetime.datetime.now() + datetime.timedelta(days=30)}' WHERE userid={call.from_user.id}")
+            f"UPDATE users SET balance={balance}, usertype='sub', subscribedtill='"
+            f"{datetime.datetime.now() + datetime.timedelta(days=30)}' WHERE userid={call.from_user.id}")
         db.commit()
         db.close()
         bot.send_message(call.message.chat.id, "Вы приобрели подписку!")
@@ -285,10 +291,12 @@ def handle_messages(message):
             balance = round(cur.execute(f"SELECT balance FROM users WHERE userid={message.from_user.id}").fetchone()[
                                 0] - SUBSCRIPE_PRICE, 2)
             cur.execute(
-                f"UPDATE users SET balance={balance}, usertype='sub', subscribedtill='{datetime.datetime.now() + datetime.timedelta(days=30)}' WHERE userid={message.from_user.id}")
+                f"UPDATE users SET balance={balance}, usertype='sub', subscribedtill="
+                f"'{datetime.datetime.now() + datetime.timedelta(days=30)}' WHERE userid={message.from_user.id}")
             db.commit()
             bot.send_message(message.chat.id,
-                             f"Ваша подписка автоматически продлена из вашего баланса. ваш баланс теперь: {balance} руб.")
+                             f"Ваша подписка автоматически продлена "
+                             f"из вашего баланса. ваш баланс теперь: {balance} руб.")
         else:
             us[2] = "user"
             cur.execute(f"UPDATE users SET usertype = 'user' WHERE userid = '{message.from_user.id}'")
@@ -347,11 +355,11 @@ def process_promo_code(message, service):
     serviceprom = [int(i[0]) for i in
                    cur.execute(f"SELECT servicenum FROM promos WHERE promo='{promo_code}'").fetchall()]
     if services.index(service) in serviceprom:
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
         bot.send_message(message.chat.id, "такой промокод уже есть", reply_markup=defaultmarkup)
     else:
         cur.execute(
-            f"INSERT INTO promos (servicenum, promo, creatorId) VALUES({services.index(service)}, '{promo_code}', '{str(message.from_user.id)}')")
+            f"INSERT INTO promos (servicenum, promo, creatorId) VALUES({services.index(service)}, '{promo_code}', "
+            f"'{str(message.from_user.id)}')")
         db.commit()
         db.close()
         bot.send_message(message.chat.id, "Промокод добавлен!", reply_markup=defaultmarkup)
@@ -486,17 +494,21 @@ def subscribe_settings(message):
                 markup.add(types.InlineKeyboardButton('Да', callback_data='buy_yes'))
                 markup.add(types.InlineKeyboardButton('Нет', callback_data='buy_no'))
                 bot.send_message(message.chat.id,
-                                 f"Ваш баланс: {balance} руб\nПодписка стоит {SUBSCRIPE_PRICE} руб.\nУ вас нет активной подписки, но достаточно денег, чтобы ее приобрести. Желаете приобрести подписку?",
+                                 f"Ваш баланс: {balance} руб\nПодписка стоит {SUBSCRIPE_PRICE} руб."
+                                 f"\nУ вас нет активной подписки, но достаточно денег, чтобы ее приобрести. "
+                                 f"Желаете приобрести подписку?",
                                  reply_markup=markup)
             else:
                 markup = types.InlineKeyboardMarkup()
                 markup.add(types.InlineKeyboardButton('Пополнить баланс', callback_data='pop_up'))
                 bot.send_message(message.chat.id,
-                                 f"Ваш баланс: {balance} руб\nПодписка стоит {SUBSCRIPE_PRICE} руб.\nУ вас нет активной подписки и недостаточно денег, чтобы ее приобрести.",
+                                 f"Ваш баланс: {balance} руб\nПодписка стоит {SUBSCRIPE_PRICE} "
+                                 f"руб.\nУ вас нет активной подписки и недостаточно денег, чтобы ее приобрести.",
                                  reply_markup=markup)
         case "sub":
             bot.send_message(message.chat.id,
-                             f"У вас есть подписка, она активна до {sub_till.date()} (еще {(sub_till.date() - datetime.date.today()).days} дней)",
+                             f"У вас есть подписка, она активна до {sub_till.date()} (еще "
+                             f"{(sub_till.date() - datetime.date.today()).days} дней)",
                              reply_markup=defaultmarkup)
         case "admin":
             bot.send_message(message.chat.id, f"вы админ, зачем сюда заходить...", reply_markup=defaultmarkup)
