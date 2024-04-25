@@ -50,6 +50,7 @@ bot.bot_pre_checkout_query = 60
 usertypes = ['admin', 'gladmin', 'user', 'sub']
 
 
+# Функция оплаты
 def pay(message, price):
     print(price)
     price = types.LabeledPrice(label='Покупка подписки', amount=price * 100)
@@ -63,6 +64,7 @@ def pay(message, price):
         bot.send_message(message.chat.id, "Слишком маленькая/большая сумма пополнения", reply_markup=defaultmarkup)
 
 
+# Успешная оплата
 @bot.message_handler(content_types=['successful_payment'])
 def success(message):
     print(message.successful_payment.total_amount / 100)
@@ -85,10 +87,12 @@ def process_pre_checkout_query(pre_checkout_query):
     bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
 
+# Вспомогательная функция для проверки подписки
 def isOutdated(dt):
     return datetime.datetime.now() > datetime.datetime.strptime(dt, "%Y-%m-%d %H:%M:%S.%f")
 
 
+# Отправление верефикационного кода
 def send_verification_email(email, code):
     msg = MIMEText(f'Добрый день!'
                    f' Вы хотите зарегистрироваться в нашем телеграм-боте по выдаче промокодов.'
@@ -134,6 +138,7 @@ def manage_users(message):
         bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
 
 
+# Управление пользователями
 def manage_user(message, usidlist):
     print(usidlist, message.text)
     if message.text.isdigit() and 0 < int(message.text) <= len(usidlist):
@@ -146,9 +151,9 @@ def manage_user(message, usidlist):
                        f"<b>Имя:</b> {bot.get_chat_member(usidlist[int(message.text) - 1][0], usidlist[int(message.text) - 1][0]).user.username if usidlist[int(message.text) - 1][0] > 1488 else 'asshole'}\n" \
                        f"<b>Email:</b> {email}\n" \
                        f"<b>Баланс:</b> {balance} руб.\n" \
-                       f"<b>Ваша масть:</b> {usertype}"
+                       f"<b>Ваша роль:</b> {usertype}"
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-        markup.add(types.KeyboardButton("Поменять масть"))
+        markup.add(types.KeyboardButton("Поменять роль"))
         markup.add(types.KeyboardButton("Поменять баланс"))
         msg = bot.send_message(message.chat.id, profile_info, parse_mode='HTML', reply_markup=markup)
         bot.register_next_step_handler(msg, lambda m: edit_user(m, usidlist[int(message.text) - 1][0]))
@@ -156,6 +161,7 @@ def manage_user(message, usidlist):
         bot.send_message(message.chat.id, "возвращаемся в главное меню", reply_markup=defaultmarkup)
 
 
+# Изменение роли
 def edit_user(message, id):
     print(message)
     if message.text == "Поменять роль":
@@ -171,6 +177,7 @@ def edit_user(message, id):
         bot.send_message(message.chat.id, "такого действия нет", reply_markup=defaultmarkup)
 
 
+# Изменение роли в Базе данных
 def edit_type(message, id):
     if message.text in usertypes[2:]:
         db = sqlite3.connect("promocodes.db")
@@ -183,6 +190,7 @@ def edit_type(message, id):
         bot.send_message(message.chat.id, "такой роли нет", reply_markup=defaultmarkup)
 
 
+# Изменение баланса в базе данных
 def edit_balance(message, id):
     if message.text.isdigit():
         db = sqlite3.connect("promocodes.db")
@@ -246,17 +254,18 @@ def handle_callback(call):
         cur.execute(f"UPDATE users SET usertype='user' WHERE userid='{call.data.split('_')[-1]}'")
         db.commit()
         db.close()
-        bot.send_message(call.message.chat.id, "админ успешно унижен", reply_markup=defaultmarkup)
+        bot.send_message(call.message.chat.id, "админ успешно понижен", reply_markup=defaultmarkup)
     elif call.data == "pop_up":
         msg = bot.send_message(call.message.chat.id, "введите сумму пополнения")
         bot.register_next_step_handler(msg, lambda m: pay(msg, int(m.text)))
     elif "admin_" in call.data:
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("УНИЗИТЬ", callback_data="admin_down_" + call.data.split("_")[-1]))
+        markup.add(types.InlineKeyboardButton("ПОНИЗИТЬ", callback_data="admin_down_" + call.data.split("_")[-1]))
         bot.send_message(call.message.chat.id, "выберите действие для админа " + str(
             bot.get_chat_member(call.data.split("_")[-1], call.data.split("_")[-1]).user.username), reply_markup=markup)
 
 
+# Функция верификации почты
 @bot.message_handler(func=lambda message: True)
 def handle_messages(message):
     db = sqlite3.connect("promocodes.db")
@@ -301,6 +310,7 @@ def handle_messages(message):
         bot.send_message(message.chat.id, "Используйте кнопки для навигации", reply_markup=defaultmarkup)
 
 
+# Функция добавления промокода
 def add_promo(message):
     db = sqlite3.connect("promocodes.db")
     cur = db.cursor()
@@ -320,6 +330,7 @@ def add_promo(message):
                          reply_markup=defaultmarkup)
 
 
+# Выбор сервиса
 def process_service_choice(message):
     if message.text in services:
         msg = bot.reply_to(message, f"Введите промокод для {message.text}:")
@@ -328,6 +339,7 @@ def process_service_choice(message):
         bot.reply_to(message, "Пожалуйста, выберите один из предложенных сервисов.")
 
 
+# Проверка промокода на наличие в базе данных и добавление
 def process_promo_code(message, service):
     promo_code = message.text
     db = sqlite3.connect("promocodes.db")
@@ -345,6 +357,7 @@ def process_promo_code(message, service):
         bot.send_message(message.chat.id, "Промокод добавлен!", reply_markup=defaultmarkup)
 
 
+# Показ промо из базы данных
 def ask_show_promos(message):
     db = sqlite3.connect("promocodes.db")
     cur = db.cursor()
@@ -362,6 +375,7 @@ def ask_show_promos(message):
         bot.send_message(message.chat.id, "Чтобы просматривать промокоды, купите подписку!", reply_markup=defaultmarkup)
 
 
+# Показ промокодов
 def show_promos(message, servicetype):
     print(servicetype)
     db = sqlite3.connect("promocodes.db")
@@ -386,6 +400,7 @@ def show_promos(message, servicetype):
     bot.send_message(message.chat.id, promo_list, parse_mode='HTML', reply_markup=defaultmarkup)
 
 
+# Мой профиль
 @bot.message_handler(commands=['my_profile'])
 def my_profile(message):
     db = sqlite3.connect("promocodes.db")
@@ -397,26 +412,30 @@ def my_profile(message):
                    f"<b>Имя:</b> {message.from_user.first_name}\n" \
                    f"<b>Email:</b> {email}\n" \
                    f"<b>Баланс:</b> {balance} руб.\n" \
-                   f"<b>Ваша масть:</b> {usertype}"
+                   f"<b>Ваша роль:</b> {usertype}"
     bot.send_message(message.chat.id, profile_info, parse_mode='HTML', reply_markup=defaultmarkup)
 
 
+# Установка имени
 def set_name(message):
     msg = bot.reply_to(message, "Введите ваше имя:")
     bot.register_next_step_handler(msg, process_name)
 
 
+# Установка имени
 def process_name(message):
     user_id = message.from_user.id
     users_profiles[user_id]['name'] = message.text
     bot.reply_to(message, "Имя сохранено!")
 
 
+# Установка email
 def set_email(message):
     msg = bot.reply_to(message, "Введите ваш email:")
     bot.register_next_step_handler(msg, process_email_step)
 
 
+# Отправление кода на почту
 def process_email_step(message):
     user_id = message.from_user.id
     email = message.text
@@ -431,6 +450,7 @@ def process_email_step(message):
         bot.register_next_step_handler(msg, process_email_step)
 
 
+# Подтверждение почты
 def verify_email(message, email):
     user_id = message.from_user.id
     code = message.text
@@ -449,6 +469,7 @@ def verify_email(message, email):
         bot.register_next_step_handler(msg, lambda m: verify_email(m, email))
 
 
+# Настройка подписки
 def subscribe_settings(message):
     db = sqlite3.connect("promocodes.db")
     cur = db.cursor()
